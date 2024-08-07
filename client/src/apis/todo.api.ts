@@ -1,27 +1,36 @@
-import { DataType, Todo } from "../types/todos.type"
+import { DataType, GetItem, Todo, TodoItem } from "../types/todos.type"
 import http from "../utils/http"
 
-export const getAllTodos = async (page: number, limit: number) => {
+type ParamType = {
+   currentPage: number, 
+   limit?: number, 
+   searchTask?: string, 
+   progressFilter?: boolean
+}
+
+export const getAllTodos = async ({currentPage, limit = 5, searchTask = "", progressFilter} : ParamType) => {
    return await http.get<Todo>('/', {
       params: {
          limit: limit,
-         skip: page > 0 ? (page-1)*limit - 1 : 0,
+         page: currentPage,
+         todo: searchTask,
+         completed: progressFilter,
       }
    })
 }
 
 export const getTodoById = async (id: string) => {
-   return await http.get<DataType>(`/${id}`)
+   return await http.get<TodoItem>(`/${id}`)
 }
 
-export const addNewTodo = async (todo: Omit<DataType, "id">) => {
-   return await http.post<DataType>('/add', todo)
+export const addNewTodo = async (todo: Omit<DataType, "_id">) => {
+   return await http.post<GetItem>('/', todo)
 }
 
-export const updateTodo = async (id: string, todo: Omit<DataType, "id">) => {
-   return await http.put<DataType>(`/${id}`, todo)
+export const updateTodo = async (id: string, todo: Omit<DataType, "_id">) => {
+   return await http.put<GetItem>(`/${id}`, todo)
 }
 
 export const deleteTodo = async (id: string) => {
-   return await http.delete<DataType>(`/${id}`)
+   return await http.delete<GetItem>(`/${id}`)
 }

@@ -12,7 +12,7 @@ import {
 import { Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import TodoList from "../components/TodoList";
-import { ChangeEvent, Key, useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -30,6 +30,7 @@ import {
 } from "../apis/todo.api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DataType } from "../types/todos.type";
+import FilterProgress from "../components/FilterProgress";
 
 type ModalType = "edit" | "add";
 
@@ -41,12 +42,13 @@ function App() {
   const [progress, setProgress] = useState<boolean>(false);
   const [editID, setEditID] = useState<string | undefined>(undefined);
   const [titleModal, setTitleModal] = useState<string>("");
-  const [taskList, setTaskList] = useState<DataType[]>([]);
+  const [searchTask, setSearchTask] = useState<string>("");
+  const [progressFilter, setProgressFilter] = useState<boolean | undefined>(undefined);
   const queryClient = useQueryClient();
 
   const todosQuery = useQuery({
-    queryKey: ["todos", currentPage],
-    queryFn: () => getAllTodos(currentPage, 6),
+    queryKey: ["todos", currentPage, searchTask, progressFilter],
+    queryFn: () => getAllTodos({currentPage, searchTask, progressFilter}),
   });
 
   const todoQuery = useQuery({
@@ -56,24 +58,28 @@ function App() {
   });
 
   const addTodomutation = useMutation({
-    mutationFn: ({ todo, completed, userId }: Omit<DataType, "id">) => {
+    mutationFn: ({ todo, completed, userId }: Omit<DataType, "_id">) => {
       return addNewTodo({ todo, completed, userId });
     },
     onSuccess: (data) => {
-      message.success(`Add Success todoid`);
-      console.log(data.data);
-      queryClient.invalidateQueries({ queryKey: ["todos", currentPage] });
+      message.success(`Add Success`);
+      console.log("data after add:", data.data.data);
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["todos", currentPage] });
+      }, 1000);
     },
   });
 
   const updateTodomutation = useMutation({
-    mutationFn: ({ id, todo, completed, userId }: DataType) => {
-      return updateTodo(id, { todo, completed, userId });
+    mutationFn: ({ _id, todo, completed, userId }: DataType) => {
+      return updateTodo(_id, { todo, completed, userId });
     },
     onSuccess: (data) => {
-      message.success(`Update Success todoid ${data.data.id}`);
-      console.log(data.data);
-      queryClient.invalidateQueries({ queryKey: ["todos", currentPage] });
+      message.success(`Update Success todoid ${data.data.data._id}`);
+      console.log("Data after update: ", data.data.data);
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["todos", currentPage] });
+      }, 1000);
     },
   });
 
@@ -83,26 +89,25 @@ function App() {
     },
     onSuccess: (_, id) => {
       message.success(`Delete Success todoid ${id}`);
-      queryClient.invalidateQueries({ queryKey: ["todos", currentPage] });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["todos", currentPage] });
+      }, 1000);
     },
   });
 
   useEffect(() => {
     if (typeModal === "edit") {
-      setTaskName(todoQuery.data?.data.todo || "");
-      setProgress(todoQuery.data?.data.completed || false);
+      console.log(todoQuery.data?.data.data);
+      setTaskName(todoQuery.data?.data.data.todo || "");
+      setProgress(todoQuery.data?.data.data.completed || false);
     }
-  }, [todoQuery.data, typeModal]);
-
-  useEffect(() => {
-    setTaskList(todosQuery.data?.data.todos || []);
-  }, [todosQuery.data]);
+  }, [todoQuery.data, typeModal, open]);
 
   const columns: ColumnsType<DataType> = [
     {
       title: "id",
-      dataIndex: "id",
-      key: "id",
+      dataIndex: "_id",
+      key: "_id",
     },
     {
       title: "Task name",
@@ -111,21 +116,9 @@ function App() {
       render: (text) => <a>{text}</a>,
     },
     {
-      title: "Completed",
+      title: <FilterProgress setProgressFilter={setProgressFilter}/>,
       key: "completed",
       dataIndex: "completed",
-      filters: [
-        {
-          text: "Done",
-          value: true,
-        },
-        {
-          text: "In Progress",
-          value: false,
-        },
-      ],
-      onFilter: (value: boolean | Key, record) =>
-        record.completed === (value as boolean),
       render: (text) => {
         const color = text ? "green" : "geekblue";
 
@@ -142,19 +135,19 @@ function App() {
       title: "Action",
       key: "action",
       render: (_, record: DataType) =>
-        todosQuery.data && todosQuery.data.data.todos.length >= 1 ? (
-          <Space key={record.id}>
+        todosQuery.data && todosQuery.data.data.totalItems >= 1 ? (
+          <Space key={record._id}>
             <Tooltip placement="top" title={"Chỉnh sửa"}>
               <Button
                 type="primary"
                 icon={<EditOutlined />}
-                onClick={() => updateModal(record.id)}
+                onClick={() => updateModal(record._id)}
               ></Button>
             </Tooltip>
             <Tooltip placement="top" title={"Xóa task"}>
               <Popconfirm
                 title="Sure to delete this task?"
-                onConfirm={() => handleDelete(record.id)}
+                onConfirm={() => handleDelete(record._id)}
               >
                 <Button
                   type="primary"
@@ -169,11 +162,7 @@ function App() {
   ];
 
   const handleChangeSearchTask = (e: ChangeEvent<HTMLInputElement>) => {
-    const currentData = todosQuery.data?.data.todos;
-    const filterData = currentData && currentData.filter((task) =>
-      task.todo.toLowerCase().includes(e.target.value.toLowerCase())
-    );
-    setTaskList(filterData || taskList);
+    setSearchTask(e.target.value)
   };
 
   const handleClickAddTask = () => {
@@ -189,11 +178,6 @@ function App() {
     setTypeModal("edit");
     setTitleModal("EDIT TASK");
     setOpen(true);
-
-    // const data = todoQuery.data;
-    // console.log(data)
-    // setTaskName(data?.data.todo || "");
-    // setProgress(data?.data.completed || false);
   };
 
   const handleDelete = async (key: string) => {
@@ -209,7 +193,7 @@ function App() {
   };
 
   const handleModal = async () => {
-    const taskForm: Omit<DataType, "id"> = {
+    const taskForm: Omit<DataType, "_id"> = {
       todo: taskName,
       completed: progress,
       userId: "1",
@@ -223,7 +207,8 @@ function App() {
         message.error(error as string);
       }
     } else {
-      const editRow = todoQuery.data?.data;
+      const editRow = todoQuery.data?.data.data;
+      console.log(editRow);
       try {
         if (editRow) {
           const updateForm: DataType = {
@@ -260,6 +245,7 @@ function App() {
           <span className="w-[40%]">
             <Input
               placeholder="Search task name"
+              value={searchTask}
               prefix={<SearchOutlined />}
               onChange={handleChangeSearchTask}
             />
@@ -278,12 +264,12 @@ function App() {
         />
         <Spin tip="Loading..." spinning={todosQuery.isLoading}>
           <div className="flex flex-col">
-            <TodoList columns={columns} data={taskList} />
+            <TodoList columns={columns} data={todosQuery.data?.data.data} />
             <div className="self-end mt-5">
               <Pagination
                 current={currentPage}
-                total={todosQuery.data?.data.total}
-                pageSize={6}
+                total={todosQuery.data?.data.totalItems}
+                pageSize={5}
                 showSizeChanger={false}
                 onChange={onChangePagination}
               />

@@ -4,6 +4,14 @@ const app = express();
 
 require("dotenv").config();
 
+const cors = require('cors');
+const corsOptions ={
+    origin:'http://localhost:5173', 
+    credentials:true,            //access-control-allow-credentials:true
+    optionSuccessStatus:200
+}
+app.use(cors(corsOptions));
+
 app.use(express.json());
 
 const connectDB = require("./connectMongo");
@@ -22,7 +30,7 @@ const deleteKeys = async (pattern) => {
 }
 
 app.get("/api/v1/todos", async (req, res) => {
-  const { limit = 5, orderBy = "todo", sortBy = "asc", todo, completed } = req.query;
+  const { limit = 5, orderBy = "createdAt", sortBy = "desc", todo, completed } = req.query;
   let page = +req.query?.page;
 
   if (!page || page <= 0) page = 1;

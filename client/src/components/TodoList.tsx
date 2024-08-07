@@ -11,7 +11,7 @@ const TodoList = ({ columns, data }: PropsType) => {
   
   return (
     <div className="list-todo mt-5">
-      <Table rowKey={item => item.id} columns={columns} dataSource={data} pagination={false} bordered/>
+      <Table rowKey={item => item._id} columns={columns} dataSource={data} pagination={false} bordered/>
     </div>
   );
 };
