@@ -12,7 +12,7 @@ import {
 import { Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import TodoList from "../components/TodoList";
-import { ChangeEvent, useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -31,6 +31,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DataType } from "../types/todos.type";
 import FilterProgress from "../components/FilterProgress";
+import { debounce } from "lodash";
+import { useSearchParams } from "react-router-dom";
 
 type ModalType = "edit" | "add";
 
@@ -43,12 +45,16 @@ function App() {
   const [editID, setEditID] = useState<string | undefined>(undefined);
   const [titleModal, setTitleModal] = useState<string>("");
   const [searchTask, setSearchTask] = useState<string>("");
-  const [progressFilter, setProgressFilter] = useState<boolean | undefined>(undefined);
+  const [searchInput, setSearchInput] = useState<string>("");
+  const [progressFilter, setProgressFilter] = useState<boolean | undefined>(
+    undefined
+  );
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
   const todosQuery = useQuery({
     queryKey: ["todos", currentPage, searchTask, progressFilter],
-    queryFn: () => getAllTodos({currentPage, searchTask, progressFilter}),
+    queryFn: () => getAllTodos({ currentPage, searchTask, progressFilter }),
   });
 
   const todoQuery = useQuery({
@@ -57,7 +63,7 @@ function App() {
     enabled: editID !== undefined,
   });
 
-  const addTodomutation = useMutation({
+  const addTodoMutation = useMutation({
     mutationFn: ({ todo, completed, userId }: Omit<DataType, "_id">) => {
       return addNewTodo({ todo, completed, userId });
     },
@@ -70,30 +76,36 @@ function App() {
     },
   });
 
-  const updateTodomutation = useMutation({
+  const updateTodoMutation = useMutation({
     mutationFn: ({ _id, todo, completed, userId }: DataType) => {
       return updateTodo(_id, { todo, completed, userId });
     },
     onSuccess: (data) => {
-      message.success(`Update Success todoid ${data.data.data._id}`);
+      message.success(`Update Success todo id ${data.data.data._id}`);
       console.log("Data after update: ", data.data.data);
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["todos", currentPage] });
+        queryClient.invalidateQueries({ queryKey: ["todo", editID] });
+      }, 1000);
+    },
+  });
+
+  const deleteTodoMutation = useMutation({
+    mutationFn: (id: string) => {
+      return deleteTodo(id);
+    },
+    onSuccess: (_, id) => {
+      message.success(`Delete Success todo id ${id}`);
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["todos", currentPage] });
       }, 1000);
     },
   });
 
-  const deleteTodomutation = useMutation({
-    mutationFn: (id: string) => {
-      return deleteTodo(id);
-    },
-    onSuccess: (_, id) => {
-      message.success(`Delete Success todoid ${id}`);
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["todos", currentPage] });
-      }, 1000);
-    },
-  });
+  // fix this
+  useEffect(() => {
+    setCurrentPage(Number(searchParams.get("page")) || 1)
+  }, [searchParams])
 
   useEffect(() => {
     if (typeModal === "edit") {
@@ -116,7 +128,7 @@ function App() {
       render: (text) => <a>{text}</a>,
     },
     {
-      title: <FilterProgress setProgressFilter={setProgressFilter}/>,
+      title: <FilterProgress setProgressFilter={setProgressFilter} />,
       key: "completed",
       dataIndex: "completed",
       render: (text) => {
@@ -137,14 +149,14 @@ function App() {
       render: (_, record: DataType) =>
         todosQuery.data && todosQuery.data.data.totalItems >= 1 ? (
           <Space key={record._id}>
-            <Tooltip placement="top" title={"Chỉnh sửa"}>
+            <Tooltip placement="top" title={"Update"}>
               <Button
                 type="primary"
                 icon={<EditOutlined />}
                 onClick={() => updateModal(record._id)}
               ></Button>
             </Tooltip>
-            <Tooltip placement="top" title={"Xóa task"}>
+            <Tooltip placement="top" title={"Delete"}>
               <Popconfirm
                 title="Sure to delete this task?"
                 onConfirm={() => handleDelete(record._id)}
@@ -161,8 +173,13 @@ function App() {
     },
   ];
 
+  const debounceSearch = useRef(
+    debounce((nextValue: string) => setSearchTask(nextValue), 500)
+  ).current;
+
   const handleChangeSearchTask = (e: ChangeEvent<HTMLInputElement>) => {
-    setSearchTask(e.target.value)
+    setSearchInput(e.target.value)
+    debounceSearch(e.target.value);
   };
 
   const handleClickAddTask = () => {
@@ -181,7 +198,7 @@ function App() {
   };
 
   const handleDelete = async (key: string) => {
-    await deleteTodomutation.mutateAsync(key);
+    await deleteTodoMutation.mutateAsync(key);
   };
 
   const handleChangeName = (event: ChangeEvent<HTMLInputElement>) => {
@@ -201,7 +218,7 @@ function App() {
 
     if (typeModal === "add") {
       try {
-        await addTodomutation.mutateAsync(taskForm);
+        await addTodoMutation.mutateAsync(taskForm);
       } catch (error) {
         console.log(error);
         message.error(error as string);
@@ -217,8 +234,7 @@ function App() {
             completed: progress,
           };
 
-          await updateTodomutation.mutateAsync(updateForm);
-          // console.log("update response: ", updateResponse.data);
+          await updateTodoMutation.mutateAsync(updateForm);
         }
       } catch (error) {
         console.log(error);
@@ -232,6 +248,11 @@ function App() {
 
   const onChangePagination: PaginationProps["onChange"] = (page) => {
     setCurrentPage(page);
+
+    setSearchParams((prev) => ({
+      ...prev,
+      page: String(page)
+    }))
   };
 
   return (
@@ -245,7 +266,7 @@ function App() {
           <span className="w-[40%]">
             <Input
               placeholder="Search task name"
-              value={searchTask}
+              value={searchInput}
               prefix={<SearchOutlined />}
               onChange={handleChangeSearchTask}
             />
