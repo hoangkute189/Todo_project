@@ -8,7 +8,7 @@ type ParamType = {
    progressFilter?: boolean
 }
 
-export const getAllTodos = async ({currentPage, limit = 5, searchTask = "", progressFilter} : ParamType) => {
+export const getAllTodos = async ({currentPage, limit = 5, searchTask = undefined, progressFilter = undefined} : ParamType) => {
    return await http.get<Todo>('/', {
       params: {
          limit: limit,

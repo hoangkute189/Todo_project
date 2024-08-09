@@ -1,16 +1,29 @@
 import { Select } from "antd";
-import { Dispatch, SetStateAction } from "react";
+// import { Dispatch, SetStateAction } from "react";
+import { useSearchParams } from "react-router-dom";
 
-type PropType = {
-   setProgressFilter: Dispatch<SetStateAction<boolean | undefined>>;
-}
+// type PropType = {
+//    setProgressFilter: Dispatch<SetStateAction<boolean | undefined>>;
+// }
 
-export default function FilterProgress({ setProgressFilter } : PropType) {
+export default function FilterProgress() {
+  const [, setSearchParams] = useSearchParams();
+
   const handleFilter = (value: true | false | "None") => {
-    if(value == "None") {
-      setProgressFilter(undefined)
+    if (value == "None") {
+
+      setSearchParams((prev) => {
+        const urlSearchParams = new URLSearchParams(prev);
+        urlSearchParams.delete("progress")
+        return urlSearchParams
+      })
     } else {
-      setProgressFilter(value)
+
+      setSearchParams((prev) => {
+        const urlSearchParams = new URLSearchParams(prev);
+        urlSearchParams.set("progress", JSON.stringify(value))
+        return urlSearchParams
+      })
     }
   };
   return (

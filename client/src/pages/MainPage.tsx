@@ -44,7 +44,7 @@ function App() {
   const [progress, setProgress] = useState<boolean>(false);
   const [editID, setEditID] = useState<string | undefined>(undefined);
   const [titleModal, setTitleModal] = useState<string>("");
-  const [searchTask, setSearchTask] = useState<string>("");
+  const [searchTask, setSearchTask] = useState<string | undefined>(undefined);
   const [searchInput, setSearchInput] = useState<string>("");
   const [progressFilter, setProgressFilter] = useState<boolean | undefined>(
     undefined
@@ -104,8 +104,11 @@ function App() {
 
   // fix this
   useEffect(() => {
-    setCurrentPage(Number(searchParams.get("page")) || 1)
-  }, [searchParams])
+    setCurrentPage(Number(searchParams.get("page")) || 1);
+    setSearchTask(searchParams.get("searchTask") || undefined);
+    setSearchInput(searchParams.get("searchTask") || "");
+    setProgressFilter(searchParams.get("progress") === "true" ? true : searchParams.get("progress") === "false" ? false : undefined);
+  }, [searchParams]);
 
   useEffect(() => {
     if (typeModal === "edit") {
@@ -128,7 +131,7 @@ function App() {
       render: (text) => <a>{text}</a>,
     },
     {
-      title: <FilterProgress setProgressFilter={setProgressFilter} />,
+      title: <FilterProgress />,
       key: "completed",
       dataIndex: "completed",
       render: (text) => {
@@ -174,11 +177,20 @@ function App() {
   ];
 
   const debounceSearch = useRef(
-    debounce((nextValue: string) => setSearchTask(nextValue), 500)
+    debounce(
+      (nextValue: string) => {
+        setSearchParams((prev) => {
+          const urlSearchParams = new URLSearchParams(prev);
+          // urlSearchParams.delete("page", nextValue)
+          urlSearchParams.set("searchTask", nextValue)
+          return urlSearchParams
+        })
+      }, 500
+    )
   ).current;
 
   const handleChangeSearchTask = (e: ChangeEvent<HTMLInputElement>) => {
-    setSearchInput(e.target.value)
+    setSearchInput(e.target.value);
     debounceSearch(e.target.value);
   };
 
@@ -249,10 +261,11 @@ function App() {
   const onChangePagination: PaginationProps["onChange"] = (page) => {
     setCurrentPage(page);
 
-    setSearchParams((prev) => ({
-      ...prev,
-      page: String(page)
-    }))
+    setSearchParams((prev) => {
+      const urlSearchParams = new URLSearchParams(prev);
+      urlSearchParams.set("page", String(page))
+      return urlSearchParams
+    });
   };
 
   return (
